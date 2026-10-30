@@ -59,8 +59,8 @@
 ## 改稿后必须重跑配音
 
 ```bash
-python scripts/ftvoice.py <项目>          # 全量（会跳过未变的句子）
-python scripts/ftvoice.py <项目> --from 5 # 只重配第 5 条之后
+uv run python scripts/ftvoice.py <项目>          # 全量（会跳过未变的句子）
+uv run python scripts/ftvoice.py <项目> --from 5 # 只重配第 5 条之后
 ```
 
 `voice.js` 里的 `t` 字段必须和 cue 文本**逐字相同**——引擎靠它匹配（`timing.js:50`），不匹配就当这句没配音。

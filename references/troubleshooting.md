@@ -42,7 +42,7 @@ P.text('站台', { x: 420, y: 640, size: 46 });                     // ✗ 从 4
 **lint 只管硬错误**（出界/重叠/字号/密度），**不管构图**。必须看拼图：
 
 ```bash
-python scripts/ftcheck.py <项目>        # 出 out/snap/pNN.jpg
+uv run python scripts/ftcheck.py <项目>        # 出 out/snap/pNN.jpg
 ```
 
 然后**用 Read 工具逐页打开看**。构图问题只有眼睛能发现。
@@ -118,17 +118,19 @@ P.text('…', { at: P.c(1, 0.5) });      // ✓ 时间只用 P.c* 给的
 
 ### 引擎未就位
 
-skill 需要两样东西：**引擎**（约 16MB，setup 时从 GitHub 拉）+ **依赖**（约 130MB，npm 安装）。
+skill 需要两样东西：**引擎**（setup 时按 tag `v0.7.4` 从 GitHub 拉，只取 `packages/engine`）+ **依赖**（约 130MB，`npm ci` 按 lockfile 装）。
 
-正常跑 `scripts/setup.py` 即可。报错分几种情况：
+正常跑 `python3 scripts/setup.py`（Windows：`scripts/setup.ps1`）即可。报错分几种情况：
 
 **① 找不到 git**
 
 引擎从 GitHub 拉取，没 git 走不通。装 Git：https://git-scm.com
 
-或手动下载 https://github.com/sitor-ai/frametell ，把 `packages/engine` 整个目录复制到 skill 根目录的 `engine/`，再跑一次 `scripts/setup.py`（会跳过引擎，只装依赖）。
+或手动下载 `v0.7.4` 源码（https://github.com/sitor-ai/frametell），把 `packages/engine` 整个目录复制到 skill 根目录的 `engine/`，再跑一次 setup（会跳过引擎，只装依赖）。
 
 **② clone / sparse checkout 失败（网络问题）**
+
+先看报错里的 commit 比对：如果提示「拉到的 commit … 与锁定的 v0.7.4 → ca29a16… 不一致」，说明拿到的是别的版本（镜像/代理改写了 tag），setup 会拒绝安装。
 
 国内网络可试镜像：
 
@@ -146,17 +148,19 @@ git config --global url."https://ghproxy.com/https://github.com/".insteadOf "htt
 npm config set registry https://registry.npmmirror.com
 ```
 
-**④ 想跳过下载（你机器上已有 frametell）**
+**④ 想跳过下载（你机器上已有 frametell，或想共用一份）**
 
-setup 会自动检测常见的 frametell 目录并复用其依赖。也可手动指定：
+setup 不再自动复用其它位置的 frametell（那要靠 junction 链回 node_modules，会造出删不掉的目录环）。要用外部引擎就显式指定：
 
 ```bash
 export FRAMETELL_ENGINE=/path/to/frametell/packages/engine
 ```
 
+路径下必须有 `tools/render.mjs`；无效路径会被大声报出（import 时提示，preflight 判 ✗）。
+
 ### 依赖检测误报「字体缺失」
 
-`check_deps` 会依次找 `engine/node_modules`、`engine/../node_modules`、以及 roughjs 解析位置，能适配 pnpm 结构。仍误报就重跑 `python scripts/setup.py`。
+`check_deps` 会依次找 `engine/node_modules`、`engine/../node_modules`、以及 roughjs 解析位置，能适配 pnpm 结构。仍误报就重跑 `python3 scripts/setup.py`。
 
 ### 找不到 Chrome / Edge
 
@@ -171,7 +175,7 @@ export FRAMETELL_ENGINE=/path/to/frametell/packages/engine
 先跑探针看真实错误：
 
 ```bash
-python scripts/ftvoice.py <项目> --backend apiz --probe
+uv run python scripts/ftvoice.py <项目> --backend apiz --probe
 ```
 
 | 报错 | 原因 | 修法 |
@@ -187,12 +191,12 @@ python scripts/ftvoice.py <项目> --backend apiz --probe
 先确认你走的是 helper，不是旧 CLI：
 
 ```bash
-python scripts/ftvoice.py <项目> --backend edge --probe
+uv run python scripts/ftvoice.py <项目> --backend edge --probe
 ```
 
 - 新域名 `api.msedgeservices.com` 可用，helper 会自动带上
   `Ocp-Apim-Subscription-Key`；旧域名只作为回退。
-- 如果探针报 `ModuleNotFoundError`：`python -m pip install edge-tts`。
+- 如果探针报 `ModuleNotFoundError`：`edge-tts` 不在当前 Python 环境里。跑一次 `python3 scripts/setup.py`（`uv sync` 会建锁定环境），并用 `uv run python scripts/ftvoice.py …` 调用，不要用系统 `python`。
 - 如果两个域名都 403：当前网络不通，换 `--backend apiz`。
 - 不要用 `edge-tts` 命令行测，它的 7.2.8 仍写死旧域名。
 
@@ -221,7 +225,7 @@ python scripts/ftvoice.py <项目> --backend edge --probe
 **直接重跑就行。** 实测遇到过：改完页面代码后重渲，视频和音轨都正常，只有字幕烧录那步崩了。重跑后 1 分钟出片——因为**视频分段和音轨已经进了缓存**。
 
 ```bash
-python scripts/ftrender.py <项目>     # 直接重跑，不要清 out/
+uv run python scripts/ftrender.py <项目>     # 直接重跑，不要清 out/
 ```
 
 日志特征：报错在 `render.mjs:63`，但前面有 `✓ xx-无字幕.mp4  87.6s` —— 说明主要产物已完成。
@@ -280,7 +284,7 @@ export FRAMETELL_CHROME_ARGS=--window-size=1920,1080
 先跑探针看真实错误：
 
 ```bash
-python scripts/ftvoice.py <项目> --backend apiz --probe
+uv run python scripts/ftvoice.py <项目> --backend apiz --probe
 ```
 
 **常见情况**：
@@ -349,7 +353,7 @@ node engine/tools/lint.mjs --only p02 --json
 
 加速：
 ```bash
-python scripts/ftrender.py <项目> --fps 24 --skip-subs   # 先看画面，跳过烧字幕
+uv run python scripts/ftrender.py <项目> --fps 24 --skip-subs   # 先看画面，跳过烧字幕
 ```
 
 ### `schedule exceeds cue window`
@@ -393,7 +397,7 @@ skill 的脚本已统一用 `file:///D:/path`（见 `ftlib.py:file_url`）。如
 `ftnew.py` 用 junction（免管理员权限）。若失败：
 
 ```bash
-python scripts/ftnew.py <项目>    # 会重试 linkProject
+uv run python scripts/ftnew.py <项目>    # 会重试 linkProject
 ```
 
 ### 中文变方块（豆腐块）
@@ -404,7 +408,7 @@ python scripts/ftnew.py <项目>    # 会重试 linkProject
 ls whiteboard-teacher-video/node_modules/lxgw-wenkai-webfont/
 ```
 
-缺了重跑 `python scripts/setup.py`。另外**避免在页面代码里用生僻字和符号**（`→` `≠` `∝` 这类要看字体是否覆盖），拿不准就用中文词或 `P.icon` 画。
+缺了重跑 `python3 scripts/setup.py`。另外**避免在页面代码里用生僻字和符号**（`→` `≠` `∝` 这类要看字体是否覆盖），拿不准就用中文词或 `P.icon` 画。
 
 ---
 
