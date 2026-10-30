@@ -50,20 +50,23 @@ https://www.bilibili.com/video/BV1nHxY6tEwe/?vd_source=86926e418c83af75f6850b554
 
 引擎**不在 skill 包里** —— 它有 16MB / 38 万个文件（主要是展开的 three.js），打进来会让分发变得很重。
 
-setup 自动从 GitHub 拉取，用 **sparse checkout 只取引擎那一个目录**（不会下载上游几百 MB 的 electron 和桌面端）：
+setup 自动从 GitHub 拉取**固定版本** `v0.7.4`（commit `ca29a16`），用 **sparse checkout 只取引擎那一个目录**（不会下载上游的 electron 和桌面端），装完核对 `package.json` 里的真实版本与 commit：
 
 ```bash
-git clone --filter=blob:none --no-checkout --depth 1 https://github.com/sitor-ai/frametell
+git clone --filter=blob:none --no-checkout --depth 1 --branch v0.7.4 https://github.com/sitor-ai/frametell
 git -C frametell sparse-checkout init --cone
 git -C frametell sparse-checkout set packages/engine
 git -C frametell checkout
+git -C frametell rev-parse HEAD   # 必须是 ca29a16cdbff06614cd2422d8b246f0e741e3330
 ```
 
-没装 git 也可以：手动下载仓库，把 `packages/engine` 整个目录复制到 skill 根目录下的 `engine/`。
+锁定版本的意义：上游 main 是可变分支，之前直接装 main 会导致「同一份 skill 在不同时间装出不同引擎」；现在 tag 一旦被移动，`rev-parse` 对不上就直接拒绝安装。
+
+没装 git 也可以：手动下载 `v0.7.4` 源码，把 `packages/engine` 整个目录复制到 skill 根目录下的 `engine/`（此时 preflight 会标注「引擎来源未能核对」，版本仍会被严格校验）。
 
 ### 第二步：第三方依赖（约 130MB）
 
-`npm install` 自动获取，共 10 个包：
+`npm ci` 按 `package-lock.json` 装，共 10 个包（版本全部锁定，重复运行结果一致）：
 
 | 包 | 体积 | 作用 | 必须？ |
 |---|---|---|---|
@@ -112,40 +115,58 @@ cd whiteboard-teacher-video
 
 | 需要 | 说明 |
 |---|---|
-| **Node.js ≥ 22.19** | 渲染引擎依赖 |
-| **Git** | setup 用它从 GitHub 拉取引擎（无 git 可手动下载，见下） |
+| **Node.js ≥ 22.19** | 渲染引擎依赖（自带 npm） |
+| **Git** | setup 用它按 tag 拉取固定版本引擎（无 git 可手动复制，见上） |
+| **uv** | setup 用它按 `uv.lock` 建 Python 锁定环境（edge 配音要用 `edge-tts`） |
 | **Chrome 或 Edge** | 渲染时驱动它截图（**不会**替你下载 Chromium） |
-| Python 3.9+ | 跑 skill 的脚本 |
+| Python 3.9+ | 跑 setup.py 本体；skill 脚本本身走 uv 锁定环境 |
+
+macOS：
 
 ```bash
-python scripts/setup.py                                     # 跨平台（macOS / Linux / Windows）
-powershell -ExecutionPolicy Bypass -File scripts/setup.ps1   # Windows PowerShell
+python3 scripts/setup.py
 ```
 
-首次约 2–4 分钟：拉取引擎（约 16MB）+ 安装依赖（约 130MB）。**装一次即可**，之后所有渲染都复用。
+Windows（PowerShell）：
 
-setup 会打印每个环境项的检查结果，标 ✗ 的项会说明怎么修。
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
+```
 
-**没装 Git？** 手动下载 https://github.com/sitor-ai/frametell ，把 `packages/engine` 整个目录复制到 skill 根目录下的 `engine/`，再跑一次 `scripts/setup.py`（它会跳过引擎那步，只装依赖）。
+首次约 2–4 分钟：拉引擎（Frametell **v0.7.4**）+ `npm ci` 装依赖（约 130MB）+ `uv sync` 建 Python 锁定环境（`edge-tts` 7.2.8）。**装一次即可**，之后所有渲染都复用；重复运行幂等（已就位就跳过）。
+
+只想体检、一个字节都不想下载：
+
+```bash
+python3 scripts/setup.py --check                          # macOS；Windows 用 scripts/setup.ps1 --check
+```
+
+`--check` 不写任何文件，退出码 0 才代表真就绪；缺项会逐条打印修复建议。覆盖的检查项：Node ≥ 22.19 / npm / Git / uv / Chrome 或 Edge / ffmpeg（`FFMPEG_PATH` → `ffmpeg-static` → 系统 PATH）/ 引擎版本与来源 commit / npm 依赖与字体 / `edge-tts` 版本。
+
+装上之后，skill 脚本一律走 uv 锁定环境运行（下文所有命令都是这个形式）：
+
+```bash
+uv run python scripts/ftvoice.py <项目>
+```
 
 ### 2. 五步做一支视频
 
 ```bash
 # ① 建项目
-python scripts/ftnew.py D:/films/relativity --title "相对论入门" --style whiteboard
+uv run python scripts/ftnew.py D:/films/relativity --title "相对论入门" --style whiteboard
 
 # ② 写口播 → 编辑 D:/films/relativity/script.js（每页 2-3 句）
 #    画画面 → 编辑 D:/films/relativity/pages/p01.js … pNN.js
 
 # ③ 配音（逐句合成，自动缓存）
-python scripts/ftvoice.py D:/films/relativity
+uv run python scripts/ftvoice.py D:/films/relativity
 
 # ④ 质检（lint + 每页拼图）—— 修到「没明显错误」即可，别追求完美
-python scripts/ftcheck.py D:/films/relativity
+uv run python scripts/ftcheck.py D:/films/relativity
 #    ★ 然后用 Read 工具打开 out/snap/pNN.jpg 逐页看
 
 # ⑤ 先出一个快版粗片给你看
-python scripts/ftrender.py D:/films/relativity --fps 24 --skip-subs
+uv run python scripts/ftrender.py D:/films/relativity --fps 24 --skip-subs
 ```
 
 产物在 `D:/films/relativity/out/`：成片 mp4（有/无字幕两版）+ `字幕.srt` + 每页拼图。
@@ -183,11 +204,11 @@ https://www.bilibili.com/video/BV1yYJ46PE5R/?vd_source=86926e418c83af75f6850b554
 ### 5. 配音可选后端
 
 ```bash
-python scripts/ftvoice.py <项目> --backend edge    --voice mature  # 默认：edge（免费）
-python scripts/ftvoice.py <项目> --backend apiz   --voice mature  # 付费备选
-python scripts/ftvoice.py <项目> --backend edge   --voice mature  # 免费：走新域名
-python scripts/ftvoice.py <项目> --backend user   --user-audio D:/my-audios
-python scripts/ftvoice.py <项目> --backend edge --probe          # 只测可用性
+uv run python scripts/ftvoice.py <项目> --backend edge    --voice mature  # 默认：edge（免费）
+uv run python scripts/ftvoice.py <项目> --backend apiz   --voice mature  # 付费备选
+uv run python scripts/ftvoice.py <项目> --backend edge   --voice mature  # 免费：走新域名
+uv run python scripts/ftvoice.py <项目> --backend user   --user-audio D:/my-audios
+uv run python scripts/ftvoice.py <项目> --backend edge --probe          # 只测可用性
 ```
 
 > **edge 免费可用**（2026-10-22 实测）：旧域名 `speech.platform.bing.com` 在部分地区 403，
@@ -273,9 +294,9 @@ ftvoice.py  <项目> --from 5           # 从第 5 条重配（前缀不动）
 
 | 变量 | 用途 |
 |---|---|
-| `FRAMETELL_ENGINE` | 引擎装在别处时指定它（如你想共用一份引擎） |
-| `CHROME_PATH` | 指定浏览器可执行文件（默认自动探测系统 Chrome/Edge） |
-| `FFMPEG_PATH` | 指定 ffmpeg（默认用 `ffmpeg-static` 内置的） |
+| `FRAMETELL_ENGINE` | 引擎装在别处时指定它（如想共用一份）。路径下必须有 `tools/render.mjs`，无效会明说并回退内置引擎，`--check` 判 ✗ |
+| `CHROME_PATH` | 指定浏览器可执行文件（默认自动探测系统 Chrome/Edge；路径无效会提示并继续探测） |
+| `FFMPEG_PATH` | 指定 ffmpeg（默认用 `ffmpeg-static`，即使不在 PATH 也找得到）。**显式指定但无效时直接报错**，不会悄悄换成别的 ffmpeg |
 
 ---
 

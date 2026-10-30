@@ -225,7 +225,7 @@ P.liveRough((lt, rough) => {
 
 ## 效率流程（实测 22–25 分钟一条）
 
-> **批量做之前先跑进度表**：`python scripts/progress.py`
+> **批量做之前先跑进度表**：`uv run python scripts/progress.py`
 > 它会扫素材目录 + 成片目录，生成 `PROGRESS.md`（已完成 / 待做 / 缺仓库地址 / 子路径仓库 / 各风格数量）。
 > **状态是从事实算的**（`out/*-有字幕.mp4` 在不在），不要手改，做完一条重跑一次即可。
 
@@ -340,8 +340,8 @@ P.liveRough((lt, rough) => {
 | 建议风格 | 关键词推断（仅供排序参考，制作时按内容判断） |
 
 ```bash
-python scripts/progress.py                       # 默认扫 E:/all-skill-t0/skill-intros → D:/films/PROGRESS.md
-python scripts/progress.py --src ... --films ... --out ...
+uv run python scripts/progress.py                       # 默认扫 E:/all-skill-t0/skill-intros → D:/films/PROGRESS.md
+uv run python scripts/progress.py --src ... --films ... --out ...
 ```
 
 **它会主动暴露三类坑**，正好是批量时最容易翻车的地方：

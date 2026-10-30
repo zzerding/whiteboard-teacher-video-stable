@@ -12,8 +12,8 @@
 | 上游 | https://github.com/sitor-ai/frametell |
 | 版权 | Sitor Team (https://sitor.ai) |
 | 许可 | **AGPL-3.0-only** |
-| 版本 | 0.7.2 |
-| 获取方式 | setup 时 `git clone --filter=blob:none --no-checkout --depth 1` + sparse checkout，只拉 `packages/engine`（约 16MB） |
+| 版本 | **0.7.4**（tag `v0.7.4` → commit `ca29a16cdbff06614cd2422d8b246f0e741e3330`，setup 装完核对并写入 `engine/provenance.json`） |
+| 获取方式 | setup 时 `git clone --filter=blob:none --no-checkout --depth 1 --branch v0.7.4` + sparse checkout，只拉 `packages/engine` |
 
 ### 为什么引擎不进 skill 包
 
@@ -36,7 +36,7 @@ AGPL-3.0 是强 copyleft。**由于引擎是 AGPL，用本 skill 产出的视频
 
 ---
 
-## 第三方 npm 包（由 `npm install` 自动获取）
+## 第三方 npm 包（由 `npm ci` 按 `package-lock.json` 自动获取）
 
 以下由 `package.json` 声明，setup 时自动下载，**均不随 skill 分发**：
 
@@ -62,6 +62,18 @@ AGPL-3.0 是强 copyleft。**由于引擎是 AGPL，用本 skill 产出的视频
 
 ---
 
+## 第三方 Python 包（由 `uv sync --frozen` 按 `uv.lock` 自动获取）
+
+setup 只装一个直接依赖：
+
+| 包 | 用途 | 许可 |
+|---|---|---|
+| `edge-tts` 7.2.8 | edge 配音后端（`scripts/edge_tts_speak.py` 直接 `import edge_tts`） | **LGPL-3.0**（仅 `srt_composer.py` 为 MIT），详见该包 `LICENSE` |
+
+传递依赖（aiohttp / certifi / tabulate / typing-extensions 等）的版本与哈希全部记录在仓库根的 `uv.lock`，均不随 skill 分发。
+
+---
+
 ## 外部服务（不随 skill 分发）
 
 - **TTS 配音**：默认用 `edge`（免费，走 `api.msedgeservices.com`，无需 API key）→ `apiz`（付费，用户自行安装 CLI 并提供账号）→ 火山方舟 / ElevenLabs（需自备 key）
@@ -73,7 +85,7 @@ AGPL-3.0 是强 copyleft。**由于引擎是 AGPL，用本 skill 产出的视频
 
 以下为本项目原创，不来自任何上游：
 
-- `SKILL.md`、`README.md`、`package.json`、`scripts/setup.py`、`scripts/setup.ps1`
+- `SKILL.md`、`README.md`、`package.json`、`pyproject.toml`、`uv.lock`、`scripts/setup.py`、`scripts/setup.ps1`、`tests/`
 - `scripts/ftlib.py`、`ftnew.py`、`ftvoice.py`、`ftcheck.py`、`ftrender.py`
 - `references/*.md`（6 份技术文档）
 - `assets/example-relativity/`（基于本 skill 实际产出的示例片源码）

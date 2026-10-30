@@ -35,12 +35,12 @@ description_en: Turn a script into a whiteboard-style explainer video where ever
 ① 读 references/storyboard-method.md → 写 storyboard.json
 ② ★★★ 停下来，把分镜念给用户确认 ★★★   ← 唯一强制人类闸门
 ③ 写 script.js（口播，按分镜填 cue）
-④ python scripts/ftnew.py <项目> --title "..." --style whiteboard
-⑤ python scripts/ftvoice.py <项目>        → voice.js + 字幕.srt
+④ uv run python scripts/ftnew.py <项目> --title "..." --style whiteboard
+⑤ uv run python scripts/ftvoice.py <项目>        → voice.js + 字幕.srt
 ⑥ 逐页写 pages/pNN.js                      ← 主要创作量
-⑦ python scripts/ftcheck.py <项目>         → lint + 每页拼图
+⑦ uv run python scripts/ftcheck.py <项目>         → lint + 每页拼图
 ⑧ 用 Read 打开 out/snap/pNN.jpg 逐页看图   → 定点修，**别超过 2 轮**
-⑨ python scripts/ftrender.py --fps 24 --skip-subs   → **先出一个能看的粗片**
+⑨ uv run python scripts/ftrender.py --fps 24 --skip-subs   → **先出一个能看的粗片**
 ⑩ ★ 交付粗片给用户 ★                     ← 不要攒着不交付
 ⑪ 看图修一轮 → ftrender.py                → 交付正式版
 ```
@@ -52,7 +52,7 @@ description_en: Turn a script into a whiteboard-style explainer video where ever
 默认 `edge`（免费、无需 API key）；付费备选用 `apiz`：
 
 ```bash
-python scripts/ftvoice.py <项目> --backend edge --voice mature --speed 1.15
+uv run python scripts/ftvoice.py <项目> --backend edge --voice mature --speed 1.15
 ```
 
 edge 的旧域名（`speech.platform.bing.com`）在 2026 年起很多地区 403；
@@ -174,7 +174,7 @@ P.liveRough((lt, rough) => [rough.box(x, y, w, h, { color: 'ink' })]);  // ✓
 | 什么时候读 | 读哪份 |
 |---|---|
 | **做开源项目 / skill 介绍片** | `references/github-project-intro.md`（**8 页骨架 + 仓库地址页铁律 + 十七个坑**）· 样例 `assets/example-github-intro/` |
-| **批量做一批项目介绍片** | 先跑 `python scripts/progress.py` 生成进度表（哪些做完 / 待做 / 缺仓库地址） |
+| **批量做一批项目介绍片** | 先跑 `uv run python scripts/progress.py` 生成进度表（哪些做完 / 待做 / 缺仓库地址） |
 | **第一次用** | `assets/example-relativity/`（一条真实成片的完整源码：8 页，看完就懂） |
 | 画任何一页之前 | `references/page-api.md`（绘图 API 速查 + 三个高频坑） |
 | 定分镜 / 写口播 | `references/storyboard-method.md`（五段式 + 禁忌） |
@@ -185,17 +185,21 @@ P.liveRough((lt, rough) => [rough.box(x, y, w, h, { color: 'ink' })]);  // ✓
 
 ## 首次使用
 
-如果 `scripts/` 报「引擎未就位」或依赖缺失，先跑 setup：
+如果 `scripts/` 报「引擎未就位」或依赖缺失，先跑 setup（内部统一是一份 `scripts/setup.py`，PowerShell 只是建入口）：
 
 ```bash
-python scripts/setup.py                                    # 跨平台
-powershell -ExecutionPolicy Bypass -File scripts/setup.ps1  # Windows
+python3 scripts/setup.py                                          # macOS
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1        # Windows
 ```
 
-**需要**：Node.js ≥ 22.19、Git、本机的 Chrome/Edge、Python 3.9+
+**需要**：Node.js ≥ 22.19、Git、uv、本机的 Chrome/Edge、Python 3.9+
 
-首次约 2–4 分钟：从 GitHub 拉取引擎（约 16MB，sparse checkout 只取 `packages/engine`）+ `npm install` 依赖（约 130MB）。
+首次约 2–4 分钟：按 tag `v0.7.4` 拉引擎（sparse checkout 只取 `packages/engine`，核对 commit `ca29a16`）+ `npm ci` 装依赖（约 130MB）+ `uv sync` 建 Python 锁定环境（`edge-tts` 7.2.8）。重复运行幂等。
 
-**没装 Git**：手动下载 https://github.com/sitor-ai/frametell ，把 `packages/engine` 复制到 skill 根目录的 `engine/`，再跑一次 setup。
+只体检不安装：`python3 scripts/setup.py --check`（Windows: `scripts/setup.ps1 --check`），退出码 0 才是真就绪。
+
+装上之后脚本一律走锁定环境：`uv run python scripts/ftvoice.py <项目>`。
+
+**没装 Git**：手动下载 https://github.com/sitor-ai/frametell 的 `v0.7.4` 源码，把 `packages/engine` 复制到 skill 根目录的 `engine/`，再跑一次 setup。
 
 依赖清单与体积见 `README.md`；授权信息见 `vendor/ATTRIBUTION.md`。

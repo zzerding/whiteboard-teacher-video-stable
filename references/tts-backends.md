@@ -9,7 +9,7 @@
 | | |
 |---|---|
 | 状态 | **可用**，免费、无需余额 |
-| 依赖 | Python 包 `edge-tts`（实测 7.2.8），**不需要** `edge-tts` 命令行 |
+| 依赖 | Python 包 `edge-tts` 7.2.8（由 `uv.lock` 锁定，setup 装），**不需要** `edge-tts` 命令行 |
 | 旧域名 | `speech.platform.bing.com/.../readaloud/edge/v1` → 很多地区 403 |
 | 新域名 | `wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1` |
 | 关键参数 | `TrustedClientToken` 再作为 `Ocp-Apim-Subscription-Key` 传一次 |
@@ -22,10 +22,10 @@
 
 ```bash
 # 先用探针确认
-python scripts/ftvoice.py <项目> --backend edge --probe
+uv run python scripts/ftvoice.py <项目> --backend edge --probe
 
 # 正式配音
-python scripts/ftvoice.py <项目> --backend edge --voice mature --speed 1.15
+uv run python scripts/ftvoice.py <项目> --backend edge --voice mature --speed 1.15
 ```
 
 `ftvoice.py` 会调用 `scripts/edge_tts_speak.py`。这个 helper 做三件事：
@@ -50,14 +50,14 @@ helper 是直接 `import edge_tts` 调 `Communicate.stream()`，所以只依赖�
 `zh-CN-XiaoxiaoNeural`（女声）。查全部：
 
 ```bash
-python -m edge_tts --list-voices | findstr zh-CN
+uv run python -m edge_tts --list-voices | findstr zh-CN
 ```
 
 ### 失败时
 
 - 新域名 403：helper 会自动回退旧域名；
 - 两个都 403：说明当前网络/地区两条路都不通，换 `--backend apiz`（付费但稳定）；
-- `ModuleNotFoundError: edge_tts`：`python -m pip install edge-tts`；
+- `ModuleNotFoundError: edge_tts`：没在 uv 锁定环境里跑。先 `python3 scripts/setup.py`，再用 `uv run python scripts/ftvoice.py …`；
 - 音色报 `Invalid voice`：传完整 id（`zh-CN-XiaoxiaoNeural`），不要传中文显示名。
 
 > edge 是逐句合成，句间语调会断；要字级时间戳或更连贯的整段语气，仍建议火山 /
@@ -70,7 +70,7 @@ python -m edge_tts --list-voices | findstr zh-CN
 CLI 在 PATH 里（`~/.local/bin/apiz`），需要账户余额。
 
 ```bash
-python scripts/ftvoice.py <项目> --backend apiz --voice mature --speed 1.15
+uv run python scripts/ftvoice.py <项目> --backend apiz --voice mature --speed 1.15
 ```
 
 **★ `--voice` 要的是 `voice_id`，不是中文显示名**
@@ -115,7 +115,7 @@ apiz account balance
 你已经有录好的配音，或者不想花钱。
 
 ```bash
-python scripts/ftvoice.py <项目> --backend user --user-audio D:/my-audios
+uv run python scripts/ftvoice.py <项目> --backend user --user-audio D:/my-audios
 ```
 
 - 目录里的音频按 cue 顺序取，支持 `0.mp3 1.wav 2.mp3 …` 或任意扩展名（**按文件名排序**）
@@ -170,7 +170,7 @@ ffmpeg -i audio/p01-c00.wav -af "silenceremove=start_periods=1:start_duration=0.
 ## 常用参数
 
 ```bash
-python scripts/ftvoice.py <项目> \
+uv run python scripts/ftvoice.py <项目> \
   --backend edge \         # edge（默认，免费）| apiz（付费）| user（自备音频）
   --voice mature \        # 预设名或完整音色名（edge 见上面的映射）
   --speed 1.15 \          # 语速倍数（apiz 1.0-2.0；edge 自动转成百分比）
