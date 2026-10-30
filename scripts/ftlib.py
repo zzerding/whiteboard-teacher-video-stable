@@ -20,9 +20,14 @@ ENGINE = SKILL / "engine"
 
 # 允许用环境变量覆盖引擎位置（引擎升级、分发测试、多副本场景）。
 # 也可以把 skill 整个目录软链到别处而 engine 留在原地。
+# 显式指定的路径无效时大声说出来再退回内置引擎——绝不让覆盖悄悄失效。
 _env_engine = os.environ.get("FRAMETELL_ENGINE")
-if _env_engine and Path(_env_engine).exists():
-    ENGINE = Path(_env_engine).resolve()
+if _env_engine:
+    if (Path(_env_engine) / "tools" / "render.mjs").exists():
+        ENGINE = Path(_env_engine).resolve()
+    else:
+        print(f"⚠ FRAMETELL_ENGINE={_env_engine} 下没有 tools/render.mjs，"
+              f"改用内置引擎 {ENGINE}", file=sys.stderr)
 
 # ── 进程超时与轮次上限（防止 agent 卡死在一��永不返回的命令上） ──
 DEFAULT_TIMEOUT = 900
@@ -66,11 +71,21 @@ def require_engine() -> Path:
 
 @dataclass
 class Dep:
+    name: str
     ok: bool
     detail: str
 
 
-def _nm_candidates() -> list[Path]:
+NODE_DEPS = [
+    ("roughjs", ["roughjs/bundled/rough.js"], "手绘线条引擎"),
+    ("LXGW WenKai", ["lxgw-wenkai-webfont/lxgwwenkai-regular.css",
+                      "lxgw-wenkai-webfont/style.css"], "中文字体（缺了中文变豆腐块）"),
+    ("Caveat", ["@fontsource/caveat/500.css"], "英文手写体"),
+    ("JetBrains Mono", ["@fontsource/jetbrains-mono/400.css"], "等宽字体"),
+]
+
+
+def candidate_node_modules() -> list[Path]:
     """引擎可能看到的 node_modules 目录（按优先级）。
 
     引擎的查找顺序：engine/node_modules → engine/../..  → roughjs 的位置。
@@ -97,33 +112,32 @@ def _nm_candidates() -> list[Path]:
 
 def check_deps() -> list[Dep]:
     """检查浏览器端依赖是否齐了（字体名做模糊匹配，兼容不同版本）。"""
-    need = [
-        ("roughjs", ["roughjs/bundled/rough.js"], "手绘线条引擎"),
-        ("LXGW WenKai", ["lxgw-wenkai-webfont/lxgwwenkai-regular.css",
-                          "lxgw-wenkai-webfont/style.css"], "中文字体（缺了中文变豆腐块）"),
-        ("Caveat", ["@fontsource/caveat/500.css"], "英文手写体"),
-        ("JetBrains Mono", ["@fontsource/jetbrains-mono/400.css"], "等宽字体"),
-    ]
-    nm_dirs = _nm_candidates()
+    nm_dirs = candidate_node_modules()
     out = []
-    for name, rels, why in need:
+    for name, rels, why in NODE_DEPS:
         hit = next((str(nm / r) for nm in nm_dirs for r in rels if (nm / r).exists()), None)
-        if hit:
-            out.append(Dep(True, f"{name} ✓"))
-        else:
-            out.append(Dep(False, f"{name} ✗ 缺失（{why}）· 查找于 {len(nm_dirs)} 个 node_modules"))
+        out.append(Dep(name, bool(hit), hit or f"缺失（{why}）"))
     return out
 
 
 def find_chrome() -> Path | None:
-    """引擎的 openStage 会用 playwright-core 找浏览器；这里提前告知缺不缺。"""
+    """引擎的 openStage 会用 playwright-core 找浏览器；这里提前告知缺不缺。
+
+    CHROME_PATH 显式指定时只认它；路径无效就报出来，不当作没设置。
+    """
+    override = os.environ.get("CHROME_PATH")
+    if override:
+        p = Path(override)
+        if p.exists():
+            return p
+        print(f"⚠ CHROME_PATH={override} 不存在，改用自动探测的 Chrome/Edge", file=sys.stderr)
     cands = [
-        os.environ.get("CHROME_PATH"),
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         "/usr/bin/google-chrome",
         "/usr/bin/chromium",
     ]
@@ -134,11 +148,21 @@ def find_chrome() -> Path | None:
 
 
 def ffmpeg() -> str:
-    """ffmpeg 路径：优先用引擎装好的 ffmpeg-static，其次系统 PATH。"""
+    """ffmpeg 路径：FFMPEG_PATH（显式指定，无效即报错，不悄悄换别的）→ npm 的
+    ffmpeg-static（engine/node_modules 或 <skill>/node_modules）→ 系统 PATH。"""
+    override = os.environ.get("FFMPEG_PATH")
+    if override:
+        p = Path(override)
+        if p.exists():
+            return win(p)
+        raise SkillError(
+            f"FFMPEG_PATH={override} 不存在。修正该环境变量，或删掉它，"
+            f"改用 ffmpeg-static / 系统 ffmpeg。")
     exe = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-    bundled = ENGINE / "node_modules" / "ffmpeg-static" / exe
-    if bundled.exists():
-        return win(bundled)
+    for nm in candidate_node_modules():
+        bundled = nm / "ffmpeg-static" / exe
+        if bundled.exists():
+            return win(bundled)
     sys_ff = shutil.which("ffmpeg")
     if sys_ff:
         return sys_ff
