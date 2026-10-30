@@ -2,10 +2,18 @@
 # 约 16MB / 38 万个文件（three.js 展开），打进来会让分发极重。
 # 见 vendor/ATTRIBUTION.md
 engine/
-.engine-fetch/
+.engine-fetch*/
 
-# 依赖（setup 时 npm install，约 130MB）
+# 依赖（setup 时 npm ci，约 130MB）
 node_modules/
+.npm-stage*/
+
+# 安装期的回滚备份（setup 成功后自己删掉，异常退出时才残留）
+engine.old-*
+node_modules.old-*
+
+# Python 锁定环境（setup 用 uv sync 建）
+.venv/
 
 # 视频项目产物（ftnew.py 建的项目通常放在别处，但兜底）
 out/
